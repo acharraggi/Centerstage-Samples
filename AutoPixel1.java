@@ -1,9 +1,9 @@
 /* AutoPixel1.java - sample autonomous for Centerstage.
 
     The program attempts to recognize the pixel on a spike more, place purple pixel on that mark 
-        and yellow pixel in the corresponding area on the backdrop.
+        and then a yellow pixel in the corresponding area on the backdrop.
         
-    Starting position - red alliance, backstage, no Team Art
+    Starting position - red alliance, backstage, no Team Prop
     
     Program flow:
     - move forward to that Tensorflow will be able to recognize a pixel
@@ -11,9 +11,19 @@
     - if not found on the left side or centre, assume pixel on right side
     - drive toward indicated spike mark, then reverse, leaving behind purple pixel on the mark
     - turn and face the backdrop
+    - change from TensorFlow to April Tag vision processing 
+        Note: this should be replaced with a switchable camera logic and dual processors, see AutoPixelFront
     - use code from RobotAutoDriveToAprilTagOmni to drive and line up on area in backdrop
     - deploy yellow pixel using arm
     - park to the right side of backstage to allow alliance partner robot access to the backdrop.
+    
+    Limitations: 
+    - not best use of Vision Portal functions
+    - Uses timed motor commands for movement, works ok for this bot as long as battery
+      fully charged. Will not work well otherwise. Should use IMU and other methods for positioning
+      Maybe using the April Tags for X,Y position checking, not just direction
+    - This programs uses a Linear OpMode, but with all it's Step/State logic should probably
+      be just a regular OpMode using state machine logic.
  */
 
 package org.firstinspires.ftc.teamcode;
@@ -47,7 +57,8 @@ import java.util.concurrent.TimeUnit;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.ElapsedTime.Resolution;
 
-/**
+/**  Comments from the RobotAutoDriveToAprilTagOmni program
+ * 
  * This OpMode illustrates using a camera to locate and drive towards a specific AprilTag.
  * The code assumes a Holonomic (Mecanum or X Drive) Robot.
  *
@@ -61,12 +72,6 @@ import com.qualcomm.robotcore.util.ElapsedTime.Resolution;
  * This sample assumes that the current game AprilTag Library (usually for the current season) is being loaded by default,
  * so you should choose to approach a valid tag ID (usually starting at 0)
  *
- * Under manual control, the left stick will move forward/back & left/right.  The right stick will rotate the robot.
- * Manually drive the robot until it displays Target data on the Driver Station.
- *
- * Press and hold the *Left Bumper* to enable the automatic "Drive to target" mode.
- * Release the Left Bumper to return to manual driving mode.
- *
  * Under "Drive To Target" mode, the robot has three goals:
  * 1) Turn the robot to always keep the Tag centered on the camera frame. (Use the Target Bearing to turn the robot.)
  * 2) Strafe the robot towards the centerline of the Tag, so it approaches directly in front  of the tag.  (Use the Target Yaw to strafe the robot)
@@ -75,9 +80,6 @@ import com.qualcomm.robotcore.util.ElapsedTime.Resolution;
  * Use DESIRED_DISTANCE to set how close you want the robot to get to the target.
  * Speed and Turn sensitivity can be adjusted using the SPEED_GAIN, STRAFE_GAIN and TURN_GAIN constants.
  *
- * Use Android Studio to Copy this Class, and Paste it into the TeamCode/src/main/java/org/firstinspires/ftc/teamcode folder.
- * Remove or comment out the @Disabled line to add this OpMode to the Driver Station OpMode list.
- *
  */
 @Autonomous(name="AutoPixel1", group = "Demo")
 
@@ -85,15 +87,13 @@ public class AutoPixel1 extends LinearOpMode
 {
     // Adjust these numbers to suit your robot.
     final double DESIRED_DISTANCE = 10; //  this is how close the camera should get to the target (inches)
-    //final double DESIRED_BEARING = -11.0;
-    //final double DESIRED_YAW = -23.2;
     
     //  Set the GAIN constants to control the relationship between the measured position error, and how much power is
     //  applied to the drive motors to correct the error.
     //  Drive = Error * Gain    Make these values smaller for smoother control, or larger for a more aggressive response.
-    final double SPEED_GAIN  =  0.02  ;   // 0.02 Forward Speed Control "Gain". eg: Ramp up to 50% power at a 25 inch error.   (0.50 / 25.0)
-    final double STRAFE_GAIN =  0.015 ;   // 0.015 Strafe Speed Control "Gain".  eg: Ramp up to 25% power at a 25 degree Yaw error.   (0.25 / 25.0)
-    final double TURN_GAIN   =  0.01  ;   // 0.01 Turn Control "Gain".  eg: Ramp up to 25% power at a 25 degree error. (0.25 / 25.0)
+    final double SPEED_GAIN  =  0.03  ;   // Forward Speed Control "Gain". eg: Ramp up to 50% power at a 25 inch error.   (0.50 / 25.0)
+    final double STRAFE_GAIN =  0.015 ;   // Strafe Speed Control "Gain".  eg: Ramp up to 25% power at a 25 degree Yaw error.   (0.25 / 25.0)
+    final double TURN_GAIN   =  0.01  ;   // Turn Control "Gain".  eg: Ramp up to 25% power at a 25 degree error. (0.25 / 25.0)
 
     final double MAX_AUTO_SPEED = 0.5;   //  Clip the approach speed to this max value (adjust for your robot)
     final double MAX_AUTO_STRAFE= 0.5;   //  Clip the approach speed to this max value (adjust for your robot)
@@ -105,7 +105,7 @@ public class AutoPixel1 extends LinearOpMode
     private DcMotor rightBackDrive   = null;  //  Used to control the right back drive wheel
 
     private static final boolean USE_WEBCAM = true;  // Set true to use a webcam, or false for a phone camera
-    private int DESIRED_TAG_ID = 0;     // 584 Choose the tag you want to approach or set to -1 for ANY tag.
+    private int DESIRED_TAG_ID = 0;     //  Choose the tag you want to approach or set to -1 for ANY tag.
     private VisionPortal visionPortal;               // Used to manage the video source.
     private AprilTagProcessor aprilTag;              // Used for managing the AprilTag detection process.
     private AprilTagDetection desiredTag = null;     // Used to hold the data for a detected AprilTag
@@ -139,9 +139,6 @@ public class AutoPixel1 extends LinearOpMode
         double  turn            = 0;        // Desired turning power/speed (-1 to +1)
         int     currentStep            = 1;
         ElapsedTime runtime = new ElapsedTime();
-        
-        // Initialize the Apriltag Detection process
-        //initAprilTag();
         
         initTfod();
 
@@ -399,21 +396,11 @@ public class AutoPixel1 extends LinearOpMode
                     DESIRED_TAG_ID = 5;
                 else DESIRED_TAG_ID = 6;
                 
-                currentStep = 21; 
-                runtime.reset();  // timer for step 21
+                currentStep = 22; 
+                //runtime.reset();  // timer for step 21
             }
             
             // STEP 21 - move to backdrop - not really needed
-            if (currentStep==21) {
-                //if (runtime.milliseconds() < 50) {
-                //    moveRobot(10, 0, 0);
-                //}
-                //else {
-                //    moveRobot(0, 0, 0);
-                    currentStep = 22;  // go to backdrop
-                    //runtime.reset();  // start timer
-                //}
-            }
             
             // STEP 22 - move to backdrop using April Tag
             if (currentStep==22) {
@@ -431,7 +418,8 @@ public class AutoPixel1 extends LinearOpMode
                     double  rangeError      = (desiredTag.ftcPose.range - DESIRED_DISTANCE);
                     double  headingError    = desiredTag.ftcPose.bearing;
                     double  yawError        = desiredTag.ftcPose.yaw;
-                    if ((rangeError < 4) && (Math.abs(headingError) < 6) && (Math.abs(yawError) < 6)) {
+                    if ((rangeError < 7) && (Math.abs(headingError) < 5) && (Math.abs(yawError) < 5)) {
+                        // if we're close enough, stop using April Tag logic
                         drive = 0;
                         turn = 0;
                         strafe = 0;
@@ -521,18 +509,15 @@ public class AutoPixel1 extends LinearOpMode
 
         // Create the TensorFlow processor by using a builder.
         tfod = new TfodProcessor.Builder()
-
             // Use setModelAssetName() if the TF Model is built in as an asset.
             // Use setModelFileName() if you have downloaded a custom team model to the Robot Controller.
             //.setModelAssetName(TFOD_MODEL_ASSET)
             //.setModelFileName(TFOD_MODEL_FILE)
-
             //.setModelLabels(LABELS)
             //.setIsModelTensorFlow2(true)
             //.setIsModelQuantized(true)
             //.setModelInputSize(300)
             //.setModelAspectRatio(16.0 / 9.0)
-            
             .build();
         tfod.setZoom(1.5);
 
