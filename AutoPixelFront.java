@@ -1,7 +1,10 @@
-/* AutoPixelFront - example autonomous mode prrogram for Centerstage
+/* AutoPixelFront - example autonomous mode program for Centerstage
 
     The program attempts to recognize the pixel on a spike more, place purple pixel on that mark 
         and yellow pixel in the corresponding area on the backdrop.
+        
+    It makes use of TensorFlow to detect a Pixel and April Tags to detect the backdrop
+    and also uses the IMU for some turns and driving towards backstage.
         
     Starting position - red alliance, audience side of field, no Team Art
     
@@ -9,14 +12,17 @@
     - move forward to that Tensorflow will be able to recognize a pixel
     - examine each spike more in turn
     - if not found on the left side or centre, assume pixel on right side
-    - drive toward indicated spike mark, then spin, leaving behind purple pixel on the mark
-    - back away from spike mark
+    - drive toward indicated spike mark, 
+    - then spin to enable backing up towards middle of field
+    - back away from spike mark, leaving behind purple pixel on the mark
     - use the IMU to turn to line up to go backstage
     - use the IMU to maintain direction while moving backstage
     - use the IMU to turn and face the backdrop
     - use code from RobotAutoDriveToAprilTagOmni to drive and line up on area in backdrop
     - deploy yellow pixel using arm
     - park to the left side of backstage to allow alliance partner robot access to the backdrop.
+    
+    Note: not all options/steps programmed, this only works if it finds the pixel on the left spike mark.
  */
 
 package org.firstinspires.ftc.teamcode;
@@ -208,7 +214,7 @@ public class AutoPixelFront extends LinearOpMode
             
             // STEP 1 move forward
             if (currentStep==1) {
-                if (runtime.milliseconds() < 350) {
+                if (runtime.milliseconds() < 400) {
                     moveRobot(1, 0, 0);
                 }
                 else {
@@ -232,7 +238,7 @@ public class AutoPixelFront extends LinearOpMode
             
             // STEP 3 use Tensorflow to check for pixel on left spike mark, allow 5 seconds to elapse
             if (currentStep==3) {
-                if (runtime.milliseconds() < 30000) {
+                if (runtime.milliseconds() < 30000) { 
                     List<Recognition> currentRecognitions = tfod.getRecognitions();
                     // Step through the list of recognitions and look for pixel
                     for (Recognition recognition : currentRecognitions) {
@@ -257,7 +263,7 @@ public class AutoPixelFront extends LinearOpMode
             
             // STEP 4 move forward towards left spike mark
             if (currentStep==4) {
-                if (runtime.milliseconds() < 475) {
+                if (runtime.milliseconds() < 500) {
                     moveRobot(1, 0, 0);
                 }
                 else {
